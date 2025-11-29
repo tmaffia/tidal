@@ -1,47 +1,75 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/tmaffia/tidal"
 )
 
 func main() {
-	clientID := os.Getenv("TIDAL_CLIENT_ID")
-	clientSecret := os.Getenv("TIDAL_CLIENT_SECRET")
+	// Load .env file
+	env, err := loadEnv(".env")
+	if err != nil {
+		// Fallback to reading from root if running from cmd/example
+		env, err = loadEnv("../../.env")
+		if err != nil {
+			log.Printf("Warning: could not load .env file: %v", err)
+		}
+	}
+
+	clientID := getEnv(env, "TIDAL_CLIENT_ID")
+	clientSecret := getEnv(env, "TIDAL_CLIENT_SECRET")
 
 	if clientID == "" || clientSecret == "" {
-		log.Fatal("Please set TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET environment variables")
+		log.Fatal("TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET must be set")
 	}
 
-	ctx := context.Background()
-	config := tidal.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-	}
+	client := tidal.NewClient(tidal.WithClientCredentials(clientID, clientSecret))
 
-	// Create an authenticated HTTP client
-	httpClient := tidal.NewClientCredentialsClient(ctx, config)
+	requestAndPrintArtist(client, "1566") // Beyoncé
+}
 
-	// Create the Tidal client
-	client := tidal.NewClient(httpClient)
+func requestAndPrintArtist(client *tidal.Client, artistID string) {
+	fmt.Printf("Requesting artist with ID: %s\n", artistID)
 
-	// Example: Get Artist (Michael Martin Murphey, ID: 1000)
-	fmt.Println("Fetching Artist (Michael Martin Murphey)...")
-	artist, err := client.Artists.Get(ctx, "1000", tidal.WithCountry("US"))
+	artist, err := client.GetArtist(context.Background(), artistID)
 	if err != nil {
-		log.Fatalf("Error fetching artist: %v", err)
+		log.Printf("Failed to get artist %s: %v", artistID, err)
+		return
 	}
-	fmt.Printf("Artist: %s (ID: %s)\n", artist.Name, artist.ID)
 
-	// Example: Get Album (ID: 459833113)
-	fmt.Println("\nFetching Album...")
-	album, err := client.Albums.Get(ctx, "459833113", tidal.WithCountry("US"))
+	data, _ := json.MarshalIndent(artist, "", "  ")
+	fmt.Printf("Artist Response for %s:\n%s\n", artistID, string(data))
+}
+
+func loadEnv(filename string) (map[string]string, error) {
+	file, err := os.Open(filename)
 	if err != nil {
-		log.Fatalf("Error fetching album: %v", err)
+		return nil, err
 	}
-	fmt.Printf("Album: %s (ID: %s, Items: %d)\n", album.Title, album.ID, album.NumberOfItems)
+	defer file.Close()
+
+	env := make(map[string]string)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			env[parts[0]] = parts[1]
+		}
+	}
+	return env, scanner.Err()
+}
+
+func getEnv(env map[string]string, key string) string {
+	if val, ok := env[key]; ok {
+		return val
+	}
+	return os.Getenv(key)
 }

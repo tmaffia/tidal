@@ -1,9 +1,13 @@
 # Tidal API Go Library
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/tmaffia/tidal.svg)](https://pkg.go.dev/github.com/tmaffia/tidal)
+[![Go Reference](https://pkg.go.dev/badge/github.com/tmaffia/tidal.svg)](https://pkg.go.dev/pkg/github.com/tmaffia/tidal)
 [![CI](https://github.com/tmaffia/tidal/actions/workflows/ci.yml/badge.svg)](https://github.com/tmaffia/tidal/actions/workflows/ci.yml)
 
 A Go library for the Tidal API.
+
+## Reference
+
+- [Tidal OpenAPI Specification](https://tidal-music.github.io/tidal-api-reference/tidal-api-oas.json)
 
 ## Installation
 
@@ -51,12 +55,26 @@ func main() {
 
 To use the Tidal API, you need to register an application on the Tidal Developer Portal.
 
-1. Go to the [Tidal Developer Portal](https://developer.tidal.com/).
-2. Log in with your Tidal account.
-3. Navigate to the **Dashboard** or **My Apps**.
-4. Click **Create App**.
-5. Fill in the required details for your application.
-6. Once created, you will see your **Client ID** and **Client Secret**.
-7. Use these credentials to authenticate your client.
+For a quick start guide, please refer to the official documentation:
+[Tidal API SDK Quick Start](https://developer.tidal.com/documentation/api-sdk/api-sdk-quick-start)
 
-> **Note**: For the Client Credentials flow (used in the example above), ensure your app has the necessary permissions for the data you intend to access.
+> **Important**: You must configure your **Redirect URIs** and **Scopes** in the Tidal Developer Portal for authentication to work correctly.
+>
+> - **Redirect URIs**: Ensure they exactly match what you use in your code (e.g., `http://localhost:8080/callback`).
+> - **Scopes**: Select the scopes your application requires (e.g., `user.read`).
+
+## Contributing
+
+The linter runs automatically when a Pull Request is opened. Contributors are responsible for ensuring that all tests pass and linting succeeds.
+
+To run the linter locally:
+
+```bash
+make lint
+```
+
+To run tests locally:
+
+```bash
+make test
+```
