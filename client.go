@@ -7,10 +7,14 @@ import (
 	"net/http"
 )
 
-const defaultBaseURL = "https://openapi.tidal.com/v2"
+const (
+	defaultBaseURL = "https://openapi.tidal.com/v2"
+	defaultAuthURL = "https://auth.tidal.com/v1"
+)
 
 type Client struct {
 	baseURL    string
+	authURL    string
 	httpClient *http.Client
 }
 
@@ -19,6 +23,7 @@ type ClientOption func(*Client)
 func NewClient(opts ...ClientOption) *Client {
 	c := &Client{
 		baseURL:    defaultBaseURL,
+		authURL:    defaultAuthURL,
 		httpClient: http.DefaultClient,
 	}
 
@@ -32,6 +37,12 @@ func NewClient(opts ...ClientOption) *Client {
 func WithBaseURL(url string) ClientOption {
 	return func(c *Client) {
 		c.baseURL = url
+	}
+}
+
+func WithAuthURL(url string) ClientOption {
+	return func(c *Client) {
+		c.authURL = url
 	}
 }
 
