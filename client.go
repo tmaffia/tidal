@@ -69,6 +69,12 @@ func WithClientCredentials(clientID, clientSecret string) ClientOption {
 	}
 }
 
+func WithTokenSource(ts oauth2.TokenSource) ClientOption {
+	return func(c *Client) {
+		c.httpClient = oauth2.NewClient(context.Background(), ts)
+	}
+}
+
 func (c *Client) GetArtist(ctx context.Context, id string) (*ArtistResponse, error) {
 	reqURL, err := url.Parse(fmt.Sprintf("%s/artists/%s", c.baseURL, id))
 	if err != nil {

@@ -2,100 +2,71 @@ package tidal
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
-	"strings"
+
+	"golang.org/x/oauth2"
 )
 
-type Token struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	Scope        string `json:"scope,omitempty"`
+// Authenticator handles the OAuth2 Authorization Code Flow with PKCE.
+type Authenticator struct {
+	config *oauth2.Config
 }
 
-type AuthError struct {
-	ErrorType        string `json:"error"`
-	ErrorDescription string `json:"error_description"`
+// AuthenticatorOption is a function that configures the Authenticator.
+type AuthenticatorOption func(*authenticatorConfig)
+
+type authenticatorConfig struct {
+	baseURL string
 }
 
-func (e *AuthError) Error() string {
-	return fmt.Sprintf("auth error: %s - %s", e.ErrorType, e.ErrorDescription)
+// NewAuthenticator creates a new Authenticator with the provided credentials.
+func NewAuthenticator(clientID, clientSecret, redirectURL string, opts ...AuthenticatorOption) *Authenticator {
+	cfg := &authenticatorConfig{
+		baseURL: defaultAuthURL,
+	}
+
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	return &Authenticator{
+		config: &oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURL:  redirectURL,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:   fmt.Sprintf("%s/oauth2/authorize", cfg.baseURL),
+				TokenURL:  fmt.Sprintf("%s/oauth2/token", cfg.baseURL),
+				AuthStyle: oauth2.AuthStyleInParams,
+			},
+		},
+	}
 }
 
-func (c *Client) RequestClientCredentials(ctx context.Context, clientID, clientSecret string) (*Token, error) {
-	data := url.Values{}
-	data.Set("grant_type", "client_credentials")
-	data.Set("client_id", clientID)
-	data.Set("client_secret", clientSecret)
-
-	reqURL := fmt.Sprintf("%s/oauth2/token", c.authURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, strings.NewReader(data.Encode()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+// WithAuthenticatorBaseURL sets the base URL for the authentication endpoints.
+func WithAuthenticatorBaseURL(url string) AuthenticatorOption {
+	return func(c *authenticatorConfig) {
+		c.baseURL = url
 	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to perform request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var authErr AuthError
-		if err := json.NewDecoder(resp.Body).Decode(&authErr); err == nil {
-			return nil, &authErr
-		}
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	var token Token
-	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return &token, nil
 }
 
-func (c *Client) RequestPKCEToken(ctx context.Context, code, codeVerifier, clientID string) (*Token, error) {
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("code", code)
-	data.Set("client_id", clientID)
-	data.Set("code_verifier", codeVerifier)
-	// redirect_uri might be needed in real world, but for now matching the test and minimal requirements
+// AuthCodeURL returns the URL to redirect the user to for authentication,
+// and the code verifier that must be used in the subsequent Exchange call.
+// The state parameter is used to prevent CSRF attacks.
+func (a *Authenticator) AuthCodeURL(state string) (string, string) {
+	verifier := oauth2.GenerateVerifier()
+	url := a.config.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
+	return url, verifier
+}
 
-	reqURL := fmt.Sprintf("%s/oauth2/token", c.authURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, strings.NewReader(data.Encode()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
+// Exchange converts an authorization code into a token.
+// The verifier must be the same one returned by AuthCodeURL.
+func (a *Authenticator) Exchange(ctx context.Context, code, verifier string) (*oauth2.Token, error) {
+	return a.config.Exchange(ctx, code, oauth2.VerifierOption(verifier))
+}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to perform request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var authErr AuthError
-		if err := json.NewDecoder(resp.Body).Decode(&authErr); err == nil {
-			return nil, &authErr
-		}
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	var token Token
-	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return &token, nil
+// TokenSource returns a TokenSource that will return the provided token
+// and automatically refresh it as necessary.
+func (a *Authenticator) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.TokenSource {
+	return a.config.TokenSource(ctx, token)
 }
