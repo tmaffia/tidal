@@ -11,7 +11,7 @@ import (
 )
 
 func TestAuthenticator_AuthCodeURL(t *testing.T) {
-	auth := NewAuthenticator("client-id", "client-secret", "http://localhost:8080/callback")
+	auth := NewAuthenticator("client-id", "http://localhost:8080/callback")
 	url, verifier := auth.AuthCodeURL("state-token")
 
 	if verifier == "" {
@@ -50,6 +50,17 @@ func TestAuthenticator_Exchange(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// Ensure NO Basic Auth header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "" {
+			t.Errorf("expected no Authorization header, got %s", authHeader)
+		}
+
+		// Ensure client_id is in the body
+		if r.Form.Get("client_id") != "client-id" {
+			t.Errorf("expected client_id=client-id, got %s", r.Form.Get("client_id"))
+		}
+
 		if r.Form.Get("grant_type") != "authorization_code" {
 			t.Errorf("expected grant_type=authorization_code, got %s", r.Form.Get("grant_type"))
 		}
@@ -61,17 +72,19 @@ func TestAuthenticator_Exchange(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		if _, err := w.Write([]byte(`{
 			"access_token": "mock-access-token",
 			"token_type": "Bearer",
 			"expires_in": 3600,
 			"refresh_token": "mock-refresh-token"
-		}`))
+		}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer ts.Close()
 
 	// Override the default auth URL for testing using the new functional option
-	auth := NewAuthenticator("client-id", "client-secret", "http://localhost:8080/callback", WithAuthenticatorBaseURL(ts.URL))
+	auth := NewAuthenticator("client-id", "http://localhost:8080/callback", WithAuthenticatorBaseURL(ts.URL))
 
 	token, err := auth.Exchange(context.Background(), "auth-code", "verifier")
 	if err != nil {
@@ -94,7 +107,7 @@ func TestWithTokenSource(t *testing.T) {
 	}
 	ts := oauth2.StaticTokenSource(token)
 
-	client := NewClient(WithTokenSource(ts))
+	// client := NewClient(WithTokenSource(ts)) // Removed ineffectual assignment
 
 	// We can't easily inspect the internal http client's transport,
 	// but we can verify that making a request uses the token.
@@ -105,12 +118,14 @@ func TestWithTokenSource(t *testing.T) {
 			t.Errorf("expected Authorization header 'Bearer static-token', got '%s'", authHeader)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{}`)) // Minimal valid JSON
+		if _, err := w.Write([]byte(`{}`)); err != nil { // Minimal valid JSON
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
 	// Temporarily override base URL
-	client = NewClient(WithTokenSource(ts), WithBaseURL(server.URL))
+	client := NewClient(WithTokenSource(ts), WithBaseURL(server.URL))
 
 	// Make a request (GetArtist calls the base URL)
 	_, _ = client.GetArtist(context.Background(), "123")

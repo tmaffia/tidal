@@ -16,13 +16,18 @@ type Authenticator struct {
 type AuthenticatorOption func(*authenticatorConfig)
 
 type authenticatorConfig struct {
-	baseURL string
+	tokenURL  string
+	loginURL  string
+	authStyle oauth2.AuthStyle
+	scopes    []string
 }
 
 // NewAuthenticator creates a new Authenticator with the provided credentials.
-func NewAuthenticator(clientID, clientSecret, redirectURL string, opts ...AuthenticatorOption) *Authenticator {
+func NewAuthenticator(clientID, redirectURL string, opts ...AuthenticatorOption) *Authenticator {
 	cfg := &authenticatorConfig{
-		baseURL: defaultAuthURL,
+		tokenURL:  defaultAuthURL,
+		loginURL:  "https://login.tidal.com",
+		authStyle: oauth2.AuthStyleInParams,
 	}
 
 	for _, opt := range opts {
@@ -31,22 +36,36 @@ func NewAuthenticator(clientID, clientSecret, redirectURL string, opts ...Authen
 
 	return &Authenticator{
 		config: &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			RedirectURL:  redirectURL,
+			ClientID:    clientID,
+			RedirectURL: redirectURL,
 			Endpoint: oauth2.Endpoint{
-				AuthURL:   fmt.Sprintf("%s/oauth2/authorize", cfg.baseURL),
-				TokenURL:  fmt.Sprintf("%s/oauth2/token", cfg.baseURL),
-				AuthStyle: oauth2.AuthStyleInParams,
+				AuthURL:   fmt.Sprintf("%s/authorize", cfg.loginURL),
+				TokenURL:  fmt.Sprintf("%s/oauth2/token", cfg.tokenURL),
+				AuthStyle: cfg.authStyle,
 			},
+			Scopes: cfg.scopes,
 		},
 	}
 }
 
-// WithAuthenticatorBaseURL sets the base URL for the authentication endpoints.
 func WithAuthenticatorBaseURL(url string) AuthenticatorOption {
 	return func(c *authenticatorConfig) {
-		c.baseURL = url
+		c.tokenURL = url
+	}
+}
+
+// WithScopes configures the scopes to be requested during authorization.
+// Common scopes include:
+// - "user.read": Read access to user's account
+// - "user.write": Write access to user's account
+// - "playlists.read": Read access to playlists
+// - "playlists.write": Write access to playlists
+//
+// For a complete list of scopes required for specific endpoints, please refer to the
+// Tidal API Reference documentation: https://developer.tidal.com/documentation/api-sdk/api-sdk-authorization
+func WithScopes(scopes ...string) AuthenticatorOption {
+	return func(c *authenticatorConfig) {
+		c.scopes = scopes
 	}
 }
 
