@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 const (
@@ -13,9 +17,11 @@ const (
 )
 
 type Client struct {
-	baseURL    string
-	authURL    string
-	httpClient *http.Client
+	baseURL      string
+	authURL      string
+	httpClient   *http.Client
+	clientID     string
+	clientSecret string
 }
 
 type ClientOption func(*Client)
@@ -29,6 +35,16 @@ func NewClient(opts ...ClientOption) *Client {
 
 	for _, opt := range opts {
 		opt(c)
+	}
+
+	if c.clientID != "" && c.clientSecret != "" {
+		config := &clientcredentials.Config{
+			ClientID:     c.clientID,
+			ClientSecret: c.clientSecret,
+			TokenURL:     fmt.Sprintf("%s/oauth2/token", c.authURL),
+			AuthStyle:    oauth2.AuthStyleInParams,
+		}
+		c.httpClient = config.Client(context.Background())
 	}
 
 	return c
@@ -46,10 +62,24 @@ func WithAuthURL(url string) ClientOption {
 	}
 }
 
-func (c *Client) GetArtist(ctx context.Context, id string) (*ArtistResponse, error) {
-	url := fmt.Sprintf("%s/artists/%s?countryCode=US", c.baseURL, id)
+func WithClientCredentials(clientID, clientSecret string) ClientOption {
+	return func(c *Client) {
+		c.clientID = clientID
+		c.clientSecret = clientSecret
+	}
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (c *Client) GetArtist(ctx context.Context, id string) (*ArtistResponse, error) {
+	reqURL, err := url.Parse(fmt.Sprintf("%s/artists/%s", c.baseURL, id))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse url: %w", err)
+	}
+
+	q := url.Values{}
+	q.Set("countryCode", "US")
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
