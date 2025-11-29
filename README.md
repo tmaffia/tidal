@@ -1,5 +1,8 @@
 # Tidal API Go Library
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/tmaffia/tidal.svg)](https://pkg.go.dev/github.com/tmaffia/tidal)
+[![CI](https://github.com/tmaffia/tidal/actions/workflows/ci.yml/badge.svg)](https://github.com/tmaffia/tidal/actions/workflows/ci.yml)
+
 A Go library for the Tidal API.
 
 ## Installation

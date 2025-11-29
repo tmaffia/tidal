@@ -6,4 +6,4 @@ test:
 	go test -v ./...
 
 lint:
-	go run -modfile=tools/go.mod github.com/golangci/golangci-lint/cmd/golangci-lint run
+	go tool -modfile=tools/go.mod golangci-lint run

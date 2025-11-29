@@ -1,0 +1,14 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  pkg-go-dev:
+    name: Update pkg.go.dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger pkg.go.dev
+        run: curl https://proxy.golang.org/github.com/tmaffia/tidal/@v/${{ github.ref_name }}.info
