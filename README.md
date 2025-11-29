@@ -64,3 +64,19 @@ To use the Tidal API, you need to register an application on the Tidal Developer
 7. Use these credentials to authenticate your client.
 
 > **Note**: For the Client Credentials flow (used in the example above), ensure your app has the necessary permissions for the data you intend to access.
+
+## Contributing
+
+The linter runs automatically when a Pull Request is opened. Contributors are responsible for ensuring that all tests pass and linting succeeds.
+
+To run the linter locally:
+
+```bash
+make lint
+```
+
+To run tests locally:
+
+```bash
+make test
+```
